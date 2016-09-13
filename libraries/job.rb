@@ -20,6 +20,7 @@
 #
 
 require 'rexml/document'
+require 'shellwords'
 
 require_relative '_helper'
 require_relative '_params_validate'
@@ -130,41 +131,43 @@ EOH
       end
 
       if current_resource.enabled?
-        converge_by("Build #{new_resource}") do
-          command_args = [
-            'build',
-            escape(new_resource.name)
-          ]
+        command_args = [
+          'build',
+          escape(new_resource.name)
+        ]
 
-          if new_resource.wait_for_completion
-            command_args << '-s' # Wait until the completion/abortion of the command.
-          end
+        if new_resource.wait_for_completion
+          command_args << '-s' # Wait until the completion/abortion of the command.
+        end
 
-          new_resource.parameters.each_pair do |key, value|
-            command_args << "-p #{key}='#{value}'"
-          end
+        new_resource.parameters.each_pair do |key, value|
+          command_args << "-p #{key}='#{value}'"
+        end
 
-          if new_resource.stream_job_output && new_resource.wait_for_completion && stdout_stream
-            command_args << '-v' # Prints out the console output of the build.
+        if new_resource.stream_job_output && new_resource.wait_for_completion && stdout_stream
+          command_args << '-v' # Prints out the console output of the build.
 
-            stdout_stream.print <<-EOH
+          stdout_stream.print <<-EOH
 
 
 ================================================================================
 = BEGIN '#{new_resource.name}' Jenkins job output
 ================================================================================
 
-            EOH
+          EOH
 
+          converge_by("Build #{new_resource}: #{Shellwords.join(command_args)}") do
             executor.execute!(*command_args, live_stream: stdout_stream)
+          end
 
-            stdout_stream.print <<-EOH
+          stdout_stream.print <<-EOH
 
 ================================================================================
 = END '#{new_resource.name}' Jenkins job output
 ================================================================================
-            EOH
-          else
+          EOH
+        else
+          converge_by("Build #{new_resource}: #{Shellwords.join(command_args)}") do
             executor.execute!(*command_args)
           end
         end
